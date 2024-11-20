@@ -1,7 +1,7 @@
 from ytmusicapi.navigation import nav
 
 
-def get_continuations(
+async def get_continuations(
     results, continuation_type, limit, request_func, parse_func, ctoken_path="", reloadable=False
 ):
     items = []
@@ -11,7 +11,7 @@ def get_continuations(
             if reloadable
             else get_continuation_params(results, ctoken_path)
         )
-        response = request_func(additionalParams)
+        response = await request_func(additionalParams)
         if "continuationContents" in response:
             results = response["continuationContents"][continuation_type]
         else:
@@ -24,7 +24,7 @@ def get_continuations(
     return items
 
 
-def get_validated_continuations(
+async def get_validated_continuations(
     results, continuation_type, limit, per_page, request_func, parse_func, ctoken_path=""
 ):
     items = []
@@ -35,7 +35,7 @@ def get_validated_continuations(
         )
         validate_func = lambda parsed: validate_response(parsed, per_page, limit, len(items))
 
-        response = resend_request_until_parsed_response_is_valid(
+        response = await resend_request_until_parsed_response_is_valid(
             request_func, additionalParams, wrapped_parse_func, validate_func, 3
         )
         results = response["results"]
@@ -71,14 +71,14 @@ def get_continuation_contents(continuation, parse_func):
     return []
 
 
-def resend_request_until_parsed_response_is_valid(
+async def resend_request_until_parsed_response_is_valid(
     request_func, request_additional_params, parse_func, validate_func, max_retries
 ):
-    response = request_func(request_additional_params)
+    response = await request_func(request_additional_params)
     parsed_object = parse_func(response)
     retry_counter = 0
     while not validate_func(parsed_object) and retry_counter < max_retries:
-        response = request_func(request_additional_params)
+        response = await request_func(request_additional_params)
         attempt = parse_func(response)
         if len(attempt["parsed"]) > len(parsed_object["parsed"]):
             parsed_object = attempt

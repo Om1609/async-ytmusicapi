@@ -6,7 +6,7 @@ from ytmusicapi.parsers.search import *
 
 
 class SearchMixin(MixinProtocol):
-    def search(
+    async def search(
         self,
         query: str,
         filter: Optional[str] = None,
@@ -179,7 +179,7 @@ class SearchMixin(MixinProtocol):
         if params:
             body["params"] = params
 
-        response = self._send_request(endpoint, body)
+        response = await self._send_request(endpoint, body)
 
         # no results
         if "contents" not in response:
@@ -239,14 +239,14 @@ class SearchMixin(MixinProtocol):
 
             if filter:  # if filter is set, there are continuations
 
-                def request_func(additionalParams):
-                    return self._send_request(endpoint, body, additionalParams)
+                async def request_func(additionalParams):
+                    return await self._send_request(endpoint, body, additionalParams)
 
                 def parse_func(contents):
                     return parse_search_results(contents, search_result_types, result_type, category)
 
                 search_results.extend(
-                    get_continuations(
+                    await get_continuations(
                         res["musicShelfRenderer"],
                         "musicShelfContinuation",
                         limit - len(search_results),
@@ -257,7 +257,7 @@ class SearchMixin(MixinProtocol):
 
         return search_results
 
-    def get_search_suggestions(self, query: str, detailed_runs=False) -> Union[List[str], List[Dict]]:
+    async def get_search_suggestions(self, query: str, detailed_runs=False) -> Union[List[str], List[Dict]]:
         """
         Get Search Suggestions
 
@@ -327,7 +327,7 @@ class SearchMixin(MixinProtocol):
         body = {"input": query}
         endpoint = "music/get_search_suggestions"
 
-        response = self._send_request(endpoint, body)
+        response = await self._send_request(endpoint, body)
         search_suggestions = parse_search_suggestions(response, detailed_runs)
 
         return search_suggestions

@@ -32,7 +32,7 @@ def parse_artists(results, uploaded=False):
     return artists
 
 
-def parse_library_albums(response, request_func, limit):
+async def parse_library_albums(response, request_func, limit):
     results = get_library_contents(response, GRID)
     if results is None:
         return []
@@ -42,7 +42,7 @@ def parse_library_albums(response, request_func, limit):
         parse_func = lambda contents: parse_albums(contents)
         remaining_limit = None if limit is None else (limit - len(albums))
         albums.extend(
-            get_continuations(results, "gridContinuation", remaining_limit, request_func, parse_func)
+            await get_continuations(results, "gridContinuation", remaining_limit, request_func, parse_func)
         )
 
     return albums
@@ -67,7 +67,7 @@ def parse_albums(results):
     return albums
 
 
-def parse_library_podcasts(response, request_func, limit):
+async def parse_library_podcasts(response, request_func, limit):
     results = get_library_contents(response, GRID)
     parse_func = lambda contents: parse_content_list(contents, parse_podcast)
     podcasts = parse_func(results["items"][1:])  # skip first entry "Add podcast"
@@ -75,13 +75,13 @@ def parse_library_podcasts(response, request_func, limit):
     if "continuations" in results:
         remaining_limit = None if limit is None else (limit - len(podcasts))
         podcasts.extend(
-            get_continuations(results, "gridContinuation", remaining_limit, request_func, parse_func)
+            await get_continuations(results, "gridContinuation", remaining_limit, request_func, parse_func)
         )
 
     return podcasts
 
 
-def parse_library_artists(response, request_func, limit):
+async def parse_library_artists(response, request_func, limit):
     results = get_library_contents(response, MUSIC_SHELF)
     if results is None:
         return []
@@ -91,7 +91,9 @@ def parse_library_artists(response, request_func, limit):
         parse_func = lambda contents: parse_artists(contents)
         remaining_limit = None if limit is None else (limit - len(artists))
         artists.extend(
-            get_continuations(results, "musicShelfContinuation", remaining_limit, request_func, parse_func)
+            await get_continuations(
+                results, "musicShelfContinuation", remaining_limit, request_func, parse_func
+            )
         )
 
     return artists

@@ -11,7 +11,7 @@ from ._utils import *
 
 
 class PlaylistsMixin(MixinProtocol):
-    def get_playlist(
+    async def get_playlist(
         self, playlistId: str, limit: Optional[int] = 100, related: bool = False, suggestions_limit: int = 0
     ) -> Dict:
         """
@@ -105,10 +105,10 @@ class PlaylistsMixin(MixinProtocol):
         browseId = "VL" + playlistId if not playlistId.startswith("VL") else playlistId
         body = {"browseId": browseId}
         endpoint = "browse"
-        response = self._send_request(endpoint, body)
+        response = await self._send_request(endpoint, body)
         results = nav(response, SINGLE_COLUMN_TAB + SECTION_LIST_ITEM + ["musicPlaylistShelfRenderer"], True)
         if not results:
-            return self._parse_new_playlist_format(
+            return await self._parse_new_playlist_format(
                 response, endpoint, body, suggestions_limit, related, limit
             )
 
@@ -126,7 +126,7 @@ class PlaylistsMixin(MixinProtocol):
             additionalParams = get_continuation_params(section_list)
             if playlist["owned"] and (suggestions_limit > 0 or related):
                 parse_func = lambda results: parse_playlist_items(results)
-                suggested = request_func(additionalParams)
+                suggested = await request_func(additionalParams)
                 continuation = nav(suggested, SECTION_LIST_CONTINUATION)
                 additionalParams = get_continuation_params(continuation)
                 suggestions_shelf = nav(continuation, CONTENT + MUSIC_SHELF)
@@ -134,7 +134,7 @@ class PlaylistsMixin(MixinProtocol):
 
                 parse_func = lambda results: parse_playlist_items(results)
                 playlist["suggestions"].extend(
-                    get_continuations(
+                    await get_continuations(
                         suggestions_shelf,
                         "musicShelfContinuation",
                         suggestions_limit - len(playlist["suggestions"]),
@@ -145,7 +145,7 @@ class PlaylistsMixin(MixinProtocol):
                 )
 
             if related:
-                response = request_func(additionalParams)
+                response = await request_func(additionalParams)
                 continuation = nav(response, SECTION_LIST_CONTINUATION, True)
                 if continuation:
                     parse_func = lambda results: parse_content_list(results, parse_playlist)
@@ -160,7 +160,7 @@ class PlaylistsMixin(MixinProtocol):
             parse_func = lambda contents: parse_playlist_items(contents)
             if "continuations" in results:
                 playlist["tracks"].extend(
-                    get_continuations(
+                    await get_continuations(
                         results, "musicPlaylistShelfContinuation", limit, request_func, parse_func
                     )
                 )
@@ -168,7 +168,7 @@ class PlaylistsMixin(MixinProtocol):
         playlist["duration_seconds"] = sum_total_duration(playlist)
         return playlist
 
-    def _parse_new_playlist_format(
+    async def _parse_new_playlist_format(
         self, response: Dict, endpoint, body, suggestions_limit, related, limit
     ) -> Dict:  # pragma: no cover
         """temporary function to avoid too many ifs in get_playlist during a/b test"""
@@ -226,7 +226,7 @@ class PlaylistsMixin(MixinProtocol):
             additionalParams = get_continuation_params(section_list)
             if playlist["owned"] and (suggestions_limit > 0 or related):
                 parse_func = lambda results: parse_playlist_items(results)
-                suggested = request_func(additionalParams)
+                suggested = await request_func(additionalParams)
                 continuation = nav(suggested, SECTION_LIST_CONTINUATION)
                 additionalParams = get_continuation_params(continuation)
                 suggestions_shelf = nav(continuation, CONTENT + MUSIC_SHELF)
@@ -234,7 +234,7 @@ class PlaylistsMixin(MixinProtocol):
 
                 parse_func = lambda results: parse_playlist_items(results)
                 playlist["suggestions"].extend(
-                    get_continuations(
+                    await get_continuations(
                         suggestions_shelf,
                         "musicShelfContinuation",
                         suggestions_limit - len(playlist["suggestions"]),
@@ -245,7 +245,7 @@ class PlaylistsMixin(MixinProtocol):
                 )
 
             if related:
-                response = request_func(additionalParams)
+                response = await request_func(additionalParams)
                 continuation = nav(response, SECTION_LIST_CONTINUATION, True)
                 if continuation:
                     parse_func = lambda results: parse_content_list(results, parse_playlist)
@@ -261,7 +261,7 @@ class PlaylistsMixin(MixinProtocol):
             parse_func = lambda contents: parse_playlist_items(contents)
             if "continuations" in content_data:
                 playlist["tracks"].extend(
-                    get_continuations(
+                    await get_continuations(
                         content_data, "musicPlaylistShelfContinuation", limit, request_func, parse_func
                     )
                 )
@@ -269,25 +269,25 @@ class PlaylistsMixin(MixinProtocol):
         playlist["duration_seconds"] = sum_total_duration(playlist)
         return playlist
 
-    def get_liked_songs(self, limit: int = 100) -> Dict:
+    async def get_liked_songs(self, limit: int = 100) -> Dict:
         """
         Gets playlist items for the 'Liked Songs' playlist
 
         :param limit: How many items to return. Default: 100
         :return: List of playlistItem dictionaries. See :py:func:`get_playlist`
         """
-        return self.get_playlist("LM", limit)
+        return await self.get_playlist("LM", limit)
 
-    def get_saved_episodes(self, limit: int = 100) -> Dict:
+    async def get_saved_episodes(self, limit: int = 100) -> Dict:
         """
         Gets playlist items for the 'Liked Songs' playlist
 
         :param limit: How many items to return. Default: 100
         :return: List of playlistItem dictionaries. See :py:func:`get_playlist`
         """
-        return self.get_playlist("SE", limit)
+        return await self.get_playlist("SE", limit)
 
-    def create_playlist(
+    async def create_playlist(
         self,
         title: str,
         description: str,
@@ -318,10 +318,10 @@ class PlaylistsMixin(MixinProtocol):
             body["sourcePlaylistId"] = source_playlist
 
         endpoint = "playlist/create"
-        response = self._send_request(endpoint, body)
+        response = await self._send_request(endpoint, body)
         return response["playlistId"] if "playlistId" in response else response
 
-    def edit_playlist(
+    async def edit_playlist(
         self,
         playlistId: str,
         title: Optional[str] = None,
@@ -377,10 +377,10 @@ class PlaylistsMixin(MixinProtocol):
 
         body["actions"] = actions
         endpoint = "browse/edit_playlist"
-        response = self._send_request(endpoint, body)
+        response = await self._send_request(endpoint, body)
         return response["status"] if "status" in response else response
 
-    def delete_playlist(self, playlistId: str) -> Union[str, Dict]:
+    async def delete_playlist(self, playlistId: str) -> Union[str, Dict]:
         """
         Delete a playlist.
 
@@ -390,10 +390,10 @@ class PlaylistsMixin(MixinProtocol):
         self._check_auth()
         body = {"playlistId": validate_playlist_id(playlistId)}
         endpoint = "playlist/delete"
-        response = self._send_request(endpoint, body)
+        response = await self._send_request(endpoint, body)
         return response["status"] if "status" in response else response
 
-    def add_playlist_items(
+    async def add_playlist_items(
         self,
         playlistId: str,
         videoIds: Optional[List[str]] = None,
@@ -430,7 +430,7 @@ class PlaylistsMixin(MixinProtocol):
                 body["actions"].append({"action": "ACTION_ADD_VIDEO", "addedVideoId": None})
 
         endpoint = "browse/edit_playlist"
-        response = self._send_request(endpoint, body)
+        response = await self._send_request(endpoint, body)
         if "status" in response and "SUCCEEDED" in response["status"]:
             result_dict = [
                 result_data.get("playlistEditVideoAddedResultData")
@@ -440,7 +440,7 @@ class PlaylistsMixin(MixinProtocol):
         else:
             return response
 
-    def remove_playlist_items(self, playlistId: str, videos: List[Dict]) -> Union[str, Dict]:
+    async def remove_playlist_items(self, playlistId: str, videos: List[Dict]) -> Union[str, Dict]:
         """
         Remove songs from an existing playlist
 
@@ -465,5 +465,5 @@ class PlaylistsMixin(MixinProtocol):
             )
 
         endpoint = "browse/edit_playlist"
-        response = self._send_request(endpoint, body)
+        response = await self._send_request(endpoint, body)
         return response["status"] if "status" in response else response

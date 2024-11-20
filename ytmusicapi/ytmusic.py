@@ -7,8 +7,8 @@ from contextlib import suppress
 from functools import partial
 from typing import Dict, Optional, Union
 
-import requests
-from requests import Response
+from aiohttp import ClientSession, ClientResponse
+import aiohttp
 from requests.structures import CaseInsensitiveDict
 
 from ytmusicapi.helpers import (
@@ -101,17 +101,19 @@ class YTMusicBase:
         self._token: Token  #: OAuth credential handler
         self.oauth_credentials: OAuthCredentials  #: Client used for OAuth refreshing
 
-        self._session: requests.Session  #: request session for connection pooling
+        self._session: ClientSession  #: request session for connection pooling
         self.proxies: Optional[Dict[str, str]] = proxies  #: params for session modification
 
-        if isinstance(requests_session, requests.Session):
+        if isinstance(requests_session, ClientSession):
             self._session = requests_session
         else:
             if requests_session:  # Build a new session.
-                self._session = requests.Session()
+                self._session = ClientSession()
                 self._session.request = partial(self._session.request, timeout=30)  # type: ignore[method-assign]
-            else:  # Use the Requests API module as a "session".
-                self._session = requests.api  # type: ignore[assignment]
+
+            # No api module for aiohttp, so we can't use like the Requests API module.
+            # else:  # Use the Requests API module as a "session".
+            #     self._session = requests.api  # type: ignore[assignment]
 
         # see google cookie docs: https://policies.google.com/technologies/cookies
         # value from https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/youtube.py#L502
@@ -220,34 +222,34 @@ class YTMusicBase:
 
         return self._headers
 
-    def _send_request(self, endpoint: str, body: Dict, additionalParams: str = "") -> Dict:
+    async def _send_request(self, endpoint: str, body: Dict, additionalParams: str = "") -> Dict:
         body.update(self.context)
 
         # only required for post requests (?)
         if self._headers and "X-Goog-Visitor-Id" not in self._headers:
-            self._headers.update(get_visitor_id(self._send_get_request))
+            self._headers.update(await get_visitor_id(self._send_get_request))
 
-        response = self._session.post(
+        response = await self._session.post(
             YTM_BASE_API + endpoint + self.params + additionalParams,
             json=body,
             headers=self.headers,
-            proxies=self.proxies,
+            # proxies=self.proxies,
             cookies=self.cookies,
         )
-        response_text = json.loads(response.text)
-        if response.status_code >= 400:
-            message = "Server returned HTTP " + str(response.status_code) + ": " + response.reason + ".\n"
+        response_text = await response.json()
+        if response.status >= 400:
+            message = "Server returned HTTP " + str(response.status) + ": " + response.reason + ".\n"
             error = response_text.get("error", {}).get("message")
             raise Exception(message + error)
         return response_text
 
-    def _send_get_request(self, url: str, params: Optional[Dict] = None) -> Response:
-        response = self._session.get(
+    async def _send_get_request(self, url: str, params: Optional[Dict] = None) -> ClientResponse:
+        response = await self._session.get(
             url,
             params=params,
             # handle first-use x-goog-visitor-id fetching
             headers=self.headers if self._headers else self.base_headers,
-            proxies=self.proxies,
+            # proxies=self.proxies,
             cookies=self.cookies,
         )
         return response

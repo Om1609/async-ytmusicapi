@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, Mapping, Optional
 
-import requests
+from aiohttp import ClientSession
 
 from ytmusicapi.constants import (
     OAUTH_CLIENT_ID,
@@ -47,7 +47,7 @@ class OAuthCredentials(Credentials):
         self,
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
-        session: Optional[requests.Session] = None,
+        session: Optional[ClientSession] = None,
         proxies: Optional[Dict] = None,
     ):
         """
@@ -67,22 +67,22 @@ class OAuthCredentials(Credentials):
         self.client_id = client_id if client_id else OAUTH_CLIENT_ID
         self.client_secret = client_secret if client_secret else OAUTH_CLIENT_SECRET
 
-        self._session = session if session else requests.Session()  # for auth requests
+        self._session = session if session else ClientSession()  # for auth requests
         if proxies:
             self._session.proxies.update(proxies)
 
-    def get_code(self) -> AuthCodeDict:
+    async def get_code(self) -> AuthCodeDict:
         """Method for obtaining a new user auth code. First step of token creation."""
-        code_response = self._send_request(OAUTH_CODE_URL, data={"scope": OAUTH_SCOPE})
-        return code_response.json()
+        code_response = await self._send_request(OAUTH_CODE_URL, data={"scope": OAUTH_SCOPE})
+        return await code_response.json()
 
-    def _send_request(self, url, data):
+    async def _send_request(self, url, data):
         """Method for sending post requests with required client_id and User-Agent modifications"""
 
         data.update({"client_id": self.client_id})
-        response = self._session.post(url, data, headers={"User-Agent": OAUTH_USER_AGENT})
-        if response.status_code == 401:
-            data = response.json()
+        response = await self._session.post(url, data=data, headers={"User-Agent": OAUTH_USER_AGENT})
+        if response.status == 401:
+            data = await response.json()
             issue = data.get("error")
             if issue == "unauthorized_client":
                 raise UnauthorizedOAuthClient("Token refresh error. Most likely client/token mismatch.")
@@ -94,13 +94,13 @@ class OAuthCredentials(Credentials):
                 )
             else:
                 raise Exception(
-                    f"OAuth request error. status_code: {response.status_code}, url: {url}, content: {data}"
+                    f"OAuth request error. status_code: {response.status}, url: {url}, content: {data}"
                 )
         return response
 
-    def token_from_code(self, device_code: str) -> RefreshableTokenDict:
+    async def token_from_code(self, device_code: str) -> RefreshableTokenDict:
         """Method for verifying user auth code and conversion into a FullTokenDict."""
-        response = self._send_request(
+        response = await self._send_request(
             OAUTH_TOKEN_URL,
             data={
                 "client_secret": self.client_secret,
@@ -108,9 +108,9 @@ class OAuthCredentials(Credentials):
                 "code": device_code,
             },
         )
-        return response.json()
+        return await response.json()
 
-    def refresh_token(self, refresh_token: str) -> BaseTokenDict:
+    async def refresh_token(self, refresh_token: str) -> BaseTokenDict:
         """
         Method for requesting a new access token for a given refresh_token.
         Token must have been created by the same OAuth client.
@@ -118,7 +118,7 @@ class OAuthCredentials(Credentials):
         :param refresh_token: Corresponding refresh_token for a matching access_token.
             Obtained via
         """
-        response = self._send_request(
+        response = await self._send_request(
             OAUTH_TOKEN_URL,
             data={
                 "client_secret": self.client_secret,
@@ -127,4 +127,4 @@ class OAuthCredentials(Credentials):
             },
         )
 
-        return response.json()
+        return await response.json()
